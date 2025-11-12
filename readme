@@ -1,0 +1,82 @@
+# Magician
+
+This is a fairly simple kernel module written for my Operating Systems final project. It does the following:
+
+1. load a variable into memory by editing a file in /proc. (/proc/magician)
+2. implement a version of /dev/zero (which prints an infinite supply of zeroes): but instead of zero, it prints the variable’s value. (/dev/magician)
+3. Additionally, the driver’s source code should contain useful, descriptive documentation.
+
+It's called "Magician" because it's doing a magic trick. you write a string, any string, on a piece of paper, and then the device ~magically~ tells you what that string is! I couldn't come up with a better name, so we're stuck with this bad metaphor.
+
+## How to setup
+
+Before starting, you should have a linux environment set up. I have been testing on kernel version 6.17.7, but the specific version shouldn't matter too much. You will also probably need the kernel headers - exactly how to install this will vary based on your distro of choice.
+
+First, Clean and compile the module from source:
+
+```sh
+cd magician
+make clean
+make
+```
+
+Then install the module (use sudo if necessary)
+
+```sh
+sudo insmod magician.ko
+```
+
+If you've gotten no errors so far, you can verify that you've installed the module properly by reading messages stored in the kernel ring buffer:
+
+```sh
+sudo dmesg | tail -10
+```
+
+Which should output something like:
+
+```console
+[ 8671.543814] /proc/magician created
+[ 8671.543818] Magician assigned to major number 511.
+[ 8671.543865] Device created on /dev/magician
+```
+
+Alternatively, you can use ls to see if they exist:
+
+```shell
+sudo ls -l /proc/magician
+sudo ls -l /dev/magician
+```
+
+Output:
+
+```console
+-rw-r--r-- 1 root root 0 Nov 12 16:03 /proc/magician
+crw------- 1 root root 511, 0 Nov 12 15:50 /dev/magician
+```
+
+## How to use
+
+Once you know the proc and dev files have been created, you can go ahead and use the project. There are a number of ways you can do this, but I find that the funniest is to make my computer laugh at me forever.
+
+```sh
+echo "hahaha" | sudo tee /proc/magician
+sudo cat /dev/magician
+```
+
+Output:
+
+```console
+hahaha
+hahaha
+hahaha
+hahaha
+...(and so on, forever, until you quit)
+```
+
+## Removal
+
+The module can be removed with
+
+```sh
+rmmod magician
+```

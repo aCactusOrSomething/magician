@@ -50,7 +50,6 @@ static ssize_t procfile_write(struct file *, const char __user *, size_t , loff_
 // max size of the buffer for procfs
 #define MAX_SIZE 1024
 
-
 // STATIC VALUES
 
 static int major; // major number assigned to the device driver
