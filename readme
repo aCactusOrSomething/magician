@@ -78,5 +78,5 @@ hahaha
 The module can be removed with
 
 ```sh
-rmmod magician
+sudo rmmod magician
 ```
