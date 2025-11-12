@@ -2,7 +2,7 @@
 
 This is a fairly simple kernel module written for my Operating Systems final project. It does the following:
 
-1. load a variable into memory by editing a file in /proc. (/proc/magician)
+1. load a variable into memory by editing /proc/magician
 2. implement a version of /dev/zero (which prints an infinite supply of zeroes): but instead of zero, it prints the variable’s value. (/dev/magician)
 3. Additionally, the driver’s source code should contain useful, descriptive documentation.
 
