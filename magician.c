@@ -120,7 +120,6 @@ static ssize_t device_read(struct file *filp, char __user *buffer, size_t length
             return -EFAULT;
         }
     }
-
     *offset += length;
     return length;
 
@@ -131,7 +130,7 @@ static ssize_t device_read(struct file *filp, char __user *buffer, size_t length
 // so this should just be basic error stuff.
 static ssize_t device_write(struct file *filp, const char __user *buffer, size_t length, loff_t *offset) {
     pr_alert("This operation is not supported. Did you mean to write to /proc/%s ?\n", PROC_NAME);
-    return 0;
+    return length; //returning length is still the expected behavior
 }
 
 // PROC
