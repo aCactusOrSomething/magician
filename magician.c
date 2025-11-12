@@ -1,3 +1,4 @@
+// magician.c
 #include <linux/fs.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -22,7 +23,18 @@ MODULE_VERSION("1.0");
 // it's a "magician" because it operates like the classic card trick setup. you're picking a card from the deck with /proc/magician,
 // and /dev/magician goes "is this your card?" when it prints that value.
 
-// compiler directives to deal with compiling under different kernel versions
+// PROTOTYPES
+static int device_open(struct inode *, struct file *);
+static int device_release(struct inode *, struct file *);
+static ssize_t device_read(struct file *, char __user *, size_t, loff_t *);
+static ssize_t device_write(struct file *, const char __user *, size_t, loff_t *);
+
+static ssize_t procfile_read(struct file *, char __user *, size_t, loff_t *);
+static ssize_t procfile_write(struct file *, const char __user *, size_t , loff_t *);
+
+//DIRECTIVES 
+
+// the guide I read used something like this to ensure compatibility with different kernel versions.
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
 #define HAVE_PROC_OPS
 #endif
@@ -31,22 +43,15 @@ MODULE_VERSION("1.0");
 #define NEW_CLASS_CREATE
 #endif
 
-
-// PROTOTYPES
-static int device_open(struct inode *, struct file *);
-static int device_release(struct inode *, struct file *);
-static ssize_t device_read(struct file *, char __user *, size_t, loff_t *);
-static ssize_t device_write(struct file *, const char __user *, size_t, loff_t *);
-
-static ssize_t procfile_read(struct file *file_pointer, char __user *buffer, size_t buffer_length, loff_t *offset);
-static ssize_t procfile_write(struct file *file, const char __user *buff, size_t len, loff_t *off);
-
 // names as they appear in execution (/proc/magician and /dev/magician) 
 #define PROC_NAME "magician"
 #define DEV_NAME "magician"
 
 // max size of the buffer for procfs
 #define MAX_SIZE 1024
+
+
+// STATIC VALUES
 
 static int major; // major number assigned to the device driver
 
@@ -59,11 +64,15 @@ static atomic_t already_open = ATOMIC_INIT(DEVICE_NOT_USED);
 
 static struct proc_dir_entry *our_proc_file;
 
-static char procfs_buffer[MAX_SIZE];
-static unsigned long procfs_buffer_size = 0;
+// "card" is the saved value we want to repeat endlessly.
+static char card[MAX_SIZE];
+static unsigned long card_size = 0;
 
 static struct class *cls;
 static struct device *dev;
+
+
+//file operations structs for our device and proc
 
 static struct file_operations device_fops = {
     .read = device_read,
@@ -88,7 +97,7 @@ static const struct file_operations proc_file_fops = {
 // DEV
 
 // called when a process tries to open the device file.
-// // this should mark the device as in use.
+// this should mark the device as in use.
 static int device_open(struct inode *inode, struct file *file) {
     if(atomic_cmpxchg(&already_open, DEVICE_NOT_USED, DEVICE_EXCLUSIVE_OPEN)) {
         return -EBUSY;
@@ -109,14 +118,14 @@ static int device_release(struct inode *inode, struct file *file) {
 // similar to the behavior of /dev/zero.
 static ssize_t device_read(struct file *filp, char __user *buffer, size_t length, loff_t *offset) {
 
-    if(procfs_buffer_size == 0) {
+    if(card_size == 0) {
         return 0; // There is nothing to read.
     }
 
     size_t i;
 
     for(i = 0; i < length; i++) {
-        if(put_user(procfs_buffer[i % procfs_buffer_size], buffer++)) {
+        if(put_user(card[i % card_size], buffer++)) {
             return -EFAULT;
         }
     }
@@ -137,40 +146,39 @@ static ssize_t device_write(struct file *filp, const char __user *buffer, size_t
 
 // READ /proc/magician
 // expected behavior: Just read the value.
-static ssize_t procfile_read(struct file *filp, char __user *buffer, size_t buffer_length, loff_t *offset) {
+static ssize_t procfile_read(struct file *filp, char __user *buffer, size_t length, loff_t *offset) {
     
-    if(*offset > 0 || procfs_buffer_size == 0) {
+    if(*offset > 0 || card_size == 0) {
         return 0; // end of file.
     }
     
-    if(copy_to_user(buffer, procfs_buffer, procfs_buffer_size)) {
+    if(copy_to_user(buffer, card, card_size)) {
         pr_info("copy_to_user failed\n");
         return -EFAULT;
     }
     
-    *offset += procfs_buffer_size;
-    
-    return procfs_buffer_size;
+    *offset += card_size;
+    return card_size;
 }
 
 // WRITE /proc/magician
 // expected behavior: saves to msg.
-static ssize_t procfile_write(struct file *file, const char __user *buff, size_t len, loff_t *off) {
-    procfs_buffer_size = len;
-    if(procfs_buffer_size >= MAX_SIZE) {
-        procfs_buffer_size = MAX_SIZE - 1;
+static ssize_t procfile_write(struct file *filp, const char __user *buffer, size_t length, loff_t *offset) {
+    card_size = length;
+    if(card_size >= MAX_SIZE) {
+        card_size = MAX_SIZE - 1;
     }
 
-    if(copy_from_user(procfs_buffer, buff, procfs_buffer_size)) {
+    if(copy_from_user(card, buffer, card_size)) {
         return -EFAULT;
     }
 
-    procfs_buffer[procfs_buffer_size] = '\0';
-    *off += procfs_buffer_size;
+    card[card_size] = '\0';
+    *offset += card_size;
 
-    pr_info("procfile write %s\n", procfs_buffer);
+    pr_info("procfile write %s\n", card);
 
-    return procfs_buffer_size;
+    return card_size;
 }
 
 // should create /proc/magician and /dev/magician
@@ -210,7 +218,7 @@ static int __init magician_init(void) {
     }
     pr_info("Device created on /dev/%s\n", DEV_NAME);
 
-    memset(procfs_buffer, 0, sizeof(procfs_buffer));
+    memset(card, 0, sizeof(card));
     return 0;
 
 destroy_class:
